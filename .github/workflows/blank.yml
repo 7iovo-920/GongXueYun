@@ -1,19 +1,19 @@
 name: 工学云自动打卡
 
 on:
-  # 支持在 GitHub Actions 页面手动运行
   workflow_dispatch:
 
-  # 北京时间 08:40 和 17:00
-  # GitHub Actions cron 使用 UTC，这里分别对应 00:40 和 09:00 UTC
+  # GitHub Actions 使用 UTC。
+  # 00:40 UTC = 北京时间 08:40：执行上班任务
+  # 09:10 UTC = 北京时间 17:10：执行下班任务
   schedule:
     - cron: "40 0 * * *"
-    - cron: "0 9 * * *"
+    - cron: "10 9 * * *"
 
-# 防止同一时间重复启动多个打卡任务
+# 防止同一任务在异常情况下重复运行。
 concurrency:
   group: gongxueyun-checkin
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   checkin:
@@ -25,13 +25,11 @@ jobs:
       contents: read
 
     steps:
-      # 获取仓库代码
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # 设置 Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -39,14 +37,43 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      # 安装依赖
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 执行一次完整工学云任务
-      # USER 必须在仓库 Settings -> Secrets and variables -> Actions 中配置
+      - name: Detect scheduled task type
+        id: task_type
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          # 手动运行时，根据北京时间判断应该执行哪一种任务。
+          # 自动 schedule 运行时，根据触发时刻判断：
+          # 08:40 左右 -> 上班
+          # 17:10 左右 -> 下班
+          now = datetime.now(ZoneInfo("Asia/Shanghai"))
+          event = os.environ.get("EVENT_NAME", "")
+
+          if event == "schedule":
+              if now.hour < 12:
+                  task = "morning"
+              else:
+                  task = "evening"
+          else:
+              # 手动运行：上午执行上班，下午执行下班。
+              task = "morning" if now.hour < 12 else "evening"
+
+          print(f"当前北京时间: {now:%Y-%m-%d %H:%M:%S}")
+          print(f"任务类型: {task}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"type={task}\n")
+          PY
+
       - name: Run GongXueYun task
         env:
           USER: ${{ secrets.USER }}
@@ -55,8 +82,12 @@ jobs:
         run: |
           python main.py
 
-      # 任务失败时给出明确提示
+      - name: Show success summary
+        if: success()
+        run: |
+          echo "工学云自动任务执行完成。"
+
       - name: Show failure summary
         if: failure()
         run: |
-          echo "工学云自动打卡任务执行失败，请打开当前 Actions 运行记录查看详细日志。"
+          echo "工学云自动任务执行失败，请打开当前 Actions 运行记录查看详细日志。"
