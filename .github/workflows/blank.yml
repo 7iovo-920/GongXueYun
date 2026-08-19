@@ -4,11 +4,11 @@ on:
   # 支持在 GitHub Actions 页面手动运行
   workflow_dispatch:
 
-  # 北京时间 09:00 和 18:30
-  # GitHub Actions cron 使用 UTC，这里分别对应 01:00 和 10:30 UTC
+  # 北京时间 09:00 和 17:00
+  # GitHub Actions cron 使用 UTC，这里分别对应 01:00 和 09:00 UTC
   schedule:
     - cron: "0 1 * * *"
-    - cron: "30 10 * * *"
+    - cron: "0 9 * * *"
 
 # 防止同一时间重复启动多个打卡任务
 concurrency:
