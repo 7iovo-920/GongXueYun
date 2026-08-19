@@ -20,8 +20,9 @@ logger = logging.getLogger("scheduler")
 # 设置调度器的日志标签
 _log_ctx.tag = "SCHEDULER"
 
-BASE_TIMES = ["09:00", "17:00"]  # 触发打卡的基础时间点
-MAX_OFFSET_MINUTES = 10  # 去机器化，随机让时间点偏移 0~10 分钟
+# 与 USER 配置中的 clockIn.time 保持一致
+BASE_TIMES = ["09:00", "17:00"]
+MAX_OFFSET_MINUTES = 10  # 随机偏移 0~10 分钟
 
 
 def generate_daily_schedule(day: date) -> List[datetime]:
@@ -31,16 +32,18 @@ def generate_daily_schedule(day: date) -> List[datetime]:
         hour, minute = map(int, t.split(":"))
         offset = random.randint(0, MAX_OFFSET_MINUTES)
         dt = datetime.combine(day, datetime.min.time()).replace(
-            hour=hour, minute=minute) + timedelta(minutes=offset)
+            hour=hour, minute=minute
+        ) + timedelta(minutes=offset)
         schedule.append(dt)
     schedule.sort()
-    logger.info("生成当日计划执行时间: " +
-                ", ".join(d.strftime("%Y-%m-%d %H:%M") for d in schedule))
+    logger.info(
+        "生成当日计划执行时间: "
+        + ", ".join(d.strftime("%Y-%m-%d %H:%M") for d in schedule)
+    )
     return schedule
 
 
-def get_next_run(now: datetime,
-                 schedule: List[datetime]) -> Optional[datetime]:
+def get_next_run(now: datetime, schedule: List[datetime]) -> Optional[datetime]:
     """从当日计划中获取下一次待执行时间"""
     for run_at in schedule:
         if run_at > now:
@@ -70,11 +73,12 @@ def run_loop(selected_files: Optional[List[str]]):
 
         wait_seconds = (next_run - datetime.now()).total_seconds()
         if wait_seconds <= 0:
-            # 保险：立即执行
             wait_seconds = 0
 
-        logger.info(f"下一次执行时间: {next_run.strftime('%Y-%m-%d %H:%M:%S')} "
-                    f"(等待 {int(wait_seconds)} 秒)")
+        logger.info(
+            f"下一次执行时间: {next_run.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"(等待 {int(wait_seconds)} 秒)"
+        )
 
         # 分段等待，便于 Ctrl+C
         slept = 0
@@ -109,8 +113,11 @@ def main():
     )
     args = parser.parse_args()
 
-    logger.info("调度器启动。基础时间点: " + ", ".join(BASE_TIMES) +
-                f" (均加 0~{MAX_OFFSET_MINUTES} 分钟随机偏移)")
+    logger.info(
+        "调度器启动。基础时间点: "
+        + ", ".join(BASE_TIMES)
+        + f" (均加 0~{MAX_OFFSET_MINUTES} 分钟随机偏移)"
+    )
     try:
         run_loop(args.file)
     except KeyboardInterrupt:
